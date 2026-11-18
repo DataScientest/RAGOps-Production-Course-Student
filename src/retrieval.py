@@ -1,4 +1,4 @@
-"""Index the chunks in a local Qdrant base and search them, with the improvements of chapters 3 and 4."""
+"""Index the chunks in the Qdrant server and search them, with the improvements of module 1."""
 import os
 import re
 import sys
@@ -15,28 +15,25 @@ from rank_bm25 import BM25Okapi
 from src.chunking import STRATEGIES, section_key
 
 load_dotenv()
-QDRANT_PATH = "data/qdrant"
-EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small", base_url=os.environ["LLM_BASE_URL"],
+QDRANT_URL = os.environ["QDRANT_URL"]
+EMBEDDINGS = OpenAIEmbeddings(model=os.environ["EMBED_MODEL"], base_url=os.environ["LLM_BASE_URL"],
                               api_key=os.environ["LLM_API_KEY"], check_embedding_ctx_length=False)
-LLM = ChatOpenAI(model="gpt-4o-mini", temperature=0, base_url=os.environ["LLM_BASE_URL"],
+LLM = ChatOpenAI(model=os.environ["CHAT_MODEL"], temperature=0, base_url=os.environ["LLM_BASE_URL"],
                  api_key=os.environ["LLM_API_KEY"])
 
 
 def build_store(strategy: str) -> int:
     """Embed the chunks of one strategy and write them to the Qdrant collection of the same name."""
     chunks = STRATEGIES[strategy]()
-    store = QdrantVectorStore.from_documents(chunks, EMBEDDINGS, path=QDRANT_PATH,
-                                             collection_name=strategy, force_recreate=True)
-    store.client.close()  # only one client at a time can open data/qdrant/
+    QdrantVectorStore.from_documents(chunks, EMBEDDINGS, url=QDRANT_URL,
+                                     collection_name=strategy, force_recreate=True)
     return len(chunks)
 
 
 def search(question: str, k: int = 5, strategy: str = "titled") -> list[Document]:
     """Return the k chunks closest to the question."""
-    store = QdrantVectorStore.from_existing_collection(strategy, EMBEDDINGS, path=QDRANT_PATH)
-    docs = store.similarity_search(question, k=k)
-    store.client.close()
-    return docs
+    store = QdrantVectorStore.from_existing_collection(strategy, EMBEDDINGS, url=QDRANT_URL)
+    return store.similarity_search(question, k=k)
 
 
 def expand_to_sections(docs: list[Document], sections: dict[str, str], max_chars: int = 6000) -> list[Document]:
