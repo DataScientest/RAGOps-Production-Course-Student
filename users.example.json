@@ -1,0 +1,5 @@
+{
+  "vis-remplacez-moi": ["public"],
+  "sal-remplacez-moi": ["public", "salaries"],
+  "rh-remplacez-moi": ["public", "salaries", "rh"]
+}

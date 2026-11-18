@@ -10,6 +10,7 @@ from langchain_core.documents import Document
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from pydantic import BaseModel, Field
+from qdrant_client import models
 from rank_bm25 import BM25Okapi
 
 from src.chunking import STRATEGIES, section_key
@@ -30,10 +31,13 @@ def build_store(strategy: str) -> int:
     return len(chunks)
 
 
-def search(question: str, k: int = 5, strategy: str = "titled") -> list[Document]:
-    """Return the k chunks closest to the question."""
+def search(question: str, k: int = 5, strategy: str = "titled", groups: list[str] | None = None) -> list[Document]:
+    """Return the k chunks closest to the question; with groups, only among the chunks these groups may read."""
     store = QdrantVectorStore.from_existing_collection(strategy, EMBEDDINGS, url=QDRANT_URL)
-    return store.similarity_search(question, k=k)
+    allowed = None
+    if groups is not None:
+        allowed = models.Filter(must=[models.FieldCondition(key="metadata.access", match=models.MatchAny(any=groups))])
+    return store.similarity_search(question, k=k, filter=allowed)
 
 
 def expand_to_sections(docs: list[Document], sections: dict[str, str], max_chars: int = 6000) -> list[Document]:
@@ -55,12 +59,12 @@ def expand_to_sections(docs: list[Document], sections: dict[str, str], max_chars
     return expanded
 
 
-def search_service(question: str, k: int = 5) -> list[Document]:
+def search_service(question: str, k: int = 5, groups: list[str] | None = None) -> list[Document]:
     """The method of the service: search the index "fiches", then widen to the sections stored with the chunks.
 
     INDEX in the environment names another index, to measure it before switching.
     """
-    docs = search(question, k=k, strategy=os.environ.get("INDEX", "fiches"))
+    docs = search(question, k=k, strategy=os.environ.get("INDEX", "fiches"), groups=groups or ["public"])
     sections = {section_key(doc.metadata["doc_id"], doc.metadata["section_path"]): doc.metadata["section_text"]
                 for doc in docs}
     return expand_to_sections(docs, sections)
