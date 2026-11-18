@@ -34,22 +34,28 @@ def make_section_path(metadata: dict) -> str:
     return " > ".join(levels)
 
 
-def chunk_on_headers(corpus_dir: str = "data/corpus", chunk_size: int = 500,
-                     with_title: bool = False) -> list[Document]:
-    """Cut each fiche on its titles, then cut the long sections into pieces of chunk_size tokens.
+def split_fiche(doc_id: str, text: str, chunk_size: int = 500, with_title: bool = False) -> list[Document]:
+    """Cut one fiche on its titles, then cut the long sections into pieces of chunk_size tokens.
 
     with_title=True writes the title path in front of the chunk: "[Fiche > Section]\\ntext".
     """
-    by_title = MarkdownHeaderTextSplitter(HEADERS)
+    pieces = MarkdownHeaderTextSplitter(HEADERS).split_text(text)
+    chunks = []
+    for chunk in size_splitter(chunk_size).split_documents(pieces):
+        section_path = make_section_path(chunk.metadata)
+        if with_title:
+            chunk.page_content = "[" + section_path + "]\n" + chunk.page_content
+        chunk.metadata = {"doc_id": doc_id, "section_path": section_path}
+        chunks.append(chunk)
+    return chunks
+
+
+def chunk_on_headers(corpus_dir: str = "data/corpus", chunk_size: int = 500,
+                     with_title: bool = False) -> list[Document]:
+    """Cut each fiche of the folder with split_fiche()."""
     chunks = []
     for path in sorted(Path(corpus_dir).glob("*.md")):
-        pieces = by_title.split_text(path.read_text(encoding="utf-8"))
-        for chunk in size_splitter(chunk_size).split_documents(pieces):
-            section_path = make_section_path(chunk.metadata)
-            if with_title:
-                chunk.page_content = "[" + section_path + "]\n" + chunk.page_content
-            chunk.metadata = {"doc_id": path.stem, "section_path": section_path}
-            chunks.append(chunk)
+        chunks += split_fiche(path.stem, path.read_text(encoding="utf-8"), chunk_size, with_title)
     return chunks
 
 
@@ -65,19 +71,25 @@ def section_key(doc_id: str, section_path: str) -> str:
     return doc_id + " | " + " > ".join(section_path.split(" > ")[:2])
 
 
+def fiche_sections(doc_id: str, text: str) -> dict[str, str]:
+    """Full text of each "##" section of one fiche, indexed by section_key()."""
+    sections = {}
+    for piece in MarkdownHeaderTextSplitter(HEADERS).split_text(text):
+        section_path = make_section_path(piece.metadata)
+        key = section_key(doc_id, section_path)
+        block = "[" + section_path + "]\n" + piece.page_content.strip()
+        if key in sections:
+            sections[key] = sections[key] + "\n\n" + block
+        else:
+            sections[key] = block
+    return sections
+
+
 def load_sections(corpus_dir: str = "data/corpus") -> dict[str, str]:
-    """Full text of each "##" section of each fiche, indexed by section_key()."""
-    by_title = MarkdownHeaderTextSplitter(HEADERS)
+    """The sections of every fiche of the folder, with fiche_sections()."""
     sections = {}
     for path in sorted(Path(corpus_dir).glob("*.md")):
-        for piece in by_title.split_text(path.read_text(encoding="utf-8")):
-            section_path = make_section_path(piece.metadata)
-            key = section_key(path.stem, section_path)
-            block = "[" + section_path + "]\n" + piece.page_content.strip()
-            if key in sections:
-                sections[key] = sections[key] + "\n\n" + block
-            else:
-                sections[key] = block
+        sections.update(fiche_sections(path.stem, path.read_text(encoding="utf-8")))
     return sections
 
 

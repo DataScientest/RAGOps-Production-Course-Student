@@ -23,6 +23,29 @@ services:
     depends_on:
       - redis
 
+  minio:
+    image: datascientest/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: catalog
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   api:
     build: .
     environment:
@@ -31,13 +54,15 @@ services:
       CHAT_MODEL: ${CHAT_MODEL}
       EMBED_MODEL: ${EMBED_MODEL}
       QDRANT_URL: http://qdrant:6333
-    volumes:
-      - ./data/corpus:/app/data/corpus:ro
+      POSTGRES_URL: postgresql://rag:${POSTGRES_PASSWORD}@postgres:5432/catalog
     ports:
       - "8000:8000"
     depends_on:
       - qdrant
       - litellm
+      - postgres
 
 volumes:
   qdrant_data:
+  minio_data:
+  postgres_data:

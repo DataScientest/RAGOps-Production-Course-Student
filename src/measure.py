@@ -6,7 +6,7 @@ import time
 
 from src.chunking import load_sections
 from src.corpus import count_tokens
-from src.retrieval import expand_to_sections, search, search_hybrid, search_multi, search_rerank
+from src.retrieval import expand_to_sections, search, search_hybrid, search_multi, search_rerank, search_service
 
 REFERENCE_PATH = "data/eval/ref_v2.jsonl"
 SECTIONS = load_sections()
@@ -19,6 +19,7 @@ METHODS = {
     "hybrid+section": lambda q: expand_to_sections(search_hybrid(q), SECTIONS),
     "rerank+section": lambda q: expand_to_sections(search_rerank(q), SECTIONS),
     "multi+section": lambda q: expand_to_sections(search_multi(q), SECTIONS),
+    "service": search_service,
 }
 
 

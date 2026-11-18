@@ -55,6 +55,17 @@ def expand_to_sections(docs: list[Document], sections: dict[str, str], max_chars
     return expanded
 
 
+def search_service(question: str, k: int = 5) -> list[Document]:
+    """The method of the service: search the index "fiches", then widen to the sections stored with the chunks.
+
+    INDEX in the environment names another index, to measure it before switching.
+    """
+    docs = search(question, k=k, strategy=os.environ.get("INDEX", "fiches"))
+    sections = {section_key(doc.metadata["doc_id"], doc.metadata["section_path"]): doc.metadata["section_text"]
+                for doc in docs}
+    return expand_to_sections(docs, sections)
+
+
 def tokenize(text: str) -> list[str]:
     """Lowercase words; hyphens are kept, so that "L3142-4" stays one word."""
     return re.findall(r"[\w-]+", text.lower())
