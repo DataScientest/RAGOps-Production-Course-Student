@@ -1,0 +1,53 @@
+name: quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Write the .env file from the secrets
+        env:
+          GATEWAY_BASE_URL: ${{ secrets.GATEWAY_BASE_URL }}
+          GATEWAY_API_KEY: ${{ secrets.GATEWAY_API_KEY }}
+        run: |
+          cat > .env <<EOT
+          GATEWAY_BASE_URL=$GATEWAY_BASE_URL
+          GATEWAY_API_KEY=$GATEWAY_API_KEY
+          LITELLM_MASTER_KEY=sk-ci-only
+          LLM_BASE_URL=http://localhost:4000
+          LLM_API_KEY=sk-ci-only
+          CHAT_MODEL=chat
+          EMBED_MODEL=embed-small
+          QDRANT_URL=http://localhost:6333
+          MINIO_USER=rag
+          MINIO_PASSWORD=ci-only-password
+          MINIO_URL=localhost:9000
+          POSTGRES_PASSWORD=ci-only-password
+          POSTGRES_URL=postgresql://rag:ci-only-password@localhost:5432/catalog
+          EOT
+
+      - name: Start the services
+        run: |
+          docker compose up -d qdrant redis litellm minio postgres
+          for i in $(seq 1 60); do curl -sf localhost:4000/health/liveliness && break; sleep 2; done
+
+      - name: Build the test index from the frozen sources
+        run: |
+          uv run python -m src.ingest upload data/sources_ci
+          uv run python -m src.ingest add data/internal/ACC-RH-01.md salaries
+          uv run python -m src.ingest add data/internal/NOTE-RH-02.md rh
+          uv run python -m src.ingest approve ACC-RH-01.md
+          uv run python -m src.ingest approve NOTE-RH-02.md
+          uv run python -m src.ingest fiches_ci
+          uv run python -m src.ingest use fiches_ci
+
+      - name: Quality gate
+        run: uv run python -m src.gate
