@@ -4,11 +4,13 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.164.0",
+    "httpx>=0.28.1",
     "langchain-openai>=1.6.6",
     "langchain-qdrant>=1.1.0",
     "langchain-text-splitters>=1.1.2",
     "minio>=7.2.20",
     "numpy>=2.5.3",
+    "prometheus-client>=0.26.0",
     "psycopg[binary]>=3.3.9",
     "python-dotenv>=1.2.3",
     "rank-bm25>=0.2.2",

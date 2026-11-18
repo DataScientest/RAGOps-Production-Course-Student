@@ -4,4 +4,5 @@ users.json
 data/raw/
 data/corpus/
 data/eval/runs/
+data/eval/candidates.jsonl
 __pycache__/
